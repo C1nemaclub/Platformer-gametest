@@ -72,6 +72,11 @@
       let soundtrack;
       let portalSound;
       let playOnce = 1;
+      let max = 28;
+      let points = [];
+      let tangents = [];
+      let curve;
+      let fireworksSound;
       var SceneB = new Phaser.Class({
         Extends: Phaser.Scene,
 
@@ -102,13 +107,30 @@
           this.load.audio('collect', 'assets/coincollect.mp3');
           this.load.audio('soundtrack', 'assets/soundtrack.mp3');
           this.load.audio('portalSound', 'assets/portalsound.mp3');
+          this.load.audio('fireworks', 'assets/fireworks.wav');
           this.load.image('coinLogo', 'assets/sCoins.png');
+          this.load.image('spark0', 'assets/blue.png');
+          this.load.image('spark1', 'assets/red.png');
         },
 
         create: function () {
+          //Pyro
+          var p0 = new Phaser.Math.Vector2(200, 500);
+          var p1 = new Phaser.Math.Vector2(200, 200);
+          var p2 = new Phaser.Math.Vector2(600, 200);
+          var p3 = new Phaser.Math.Vector2(600, 500);
+
+          curve = new Phaser.Curves.CubicBezier(p0, p1, p2, p3);
+
+          max = 28;
+          points = [];
+          tangents = [];
+
+          //
           coinSound = this.sound.add('collect');
           soundtrack = this.sound.add('soundtrack');
           portalSound = this.sound.add('portalSound');
+          fireworksSound = this.sound.add('fireworks');
           //soundtrack.play();
 
           const map = this.make.tilemap({
@@ -254,11 +276,83 @@
           portalSprite.setCircle(22, 25, 25);
 
           this.physics.add.overlap(player, portalSprite, nextLevel, null, this);
+
+          //Release
+
+          // for (var c = 0; c <= max; c++) {
+          //   var t = curve.getUtoTmapping(c / max);
+
+          //   points.push(curve.getPoint(t));
+          //   tangents.push(curve.getTangent(t));
+          // }
+
+          // var tempVec = new Phaser.Math.Vector2();
+
+          // var spark0 = this.add.particles('spark0');
+          // var spark1 = this.add.particles('spark1');
+
+          // for (var i = 0; i < points.length; i++) {
+          //   var p = points[i];
+
+          //   tempVec.copy(tangents[i]).normalizeRightHand().scale(-32).add(p);
+
+          //   var angle = Phaser.Math.RadToDeg(
+          //     Phaser.Math.Angle.BetweenPoints(p, tempVec)
+          //   );
+
+          //   var particles = i % 2 === 0 ? spark0 : spark1;
+          //   //tempVec.x
+          //   particles.createEmitter({
+          //     x: 3600,
+          //     y: 300,
+          //     angle: angle,
+          //     speed: { min: -100, max: 500 },
+          //     gravityY: 200,
+          //     scale: { start: 0.4, end: 0.1 },
+          //     lifespan: 800,
+          //     blendMode: 'ADD',
+          //   });
+          // }
         },
         update: function () {
           if (portalSprite.x - player.x <= 450 && playOnce === 1) {
             portalSound.play();
+            fireworksSound.play();
             playOnce = 0;
+            for (var c = 0; c <= max; c++) {
+              var t = curve.getUtoTmapping(c / max);
+
+              points.push(curve.getPoint(t));
+              tangents.push(curve.getTangent(t));
+            }
+
+            var tempVec = new Phaser.Math.Vector2();
+
+            var spark0 = this.add.particles('spark0');
+            var spark1 = this.add.particles('spark1');
+
+            for (var i = 0; i < points.length; i++) {
+              var p = points[i];
+
+              tempVec.copy(tangents[i]).normalizeRightHand().scale(-32).add(p);
+
+              var angle = Phaser.Math.RadToDeg(
+                Phaser.Math.Angle.BetweenPoints(p, tempVec)
+              );
+
+              var particles = i % 2 === 0 ? spark0 : spark1;
+              //tempVec.x
+              particles.createEmitter({
+                x: 3600,
+                y: 300,
+                angle: angle,
+                speed: { min: -100, max: 500 },
+                gravityY: 200,
+                scale: { start: 0.4, end: 0.1 },
+                lifespan: 800,
+                blendMode: 'ADD',
+              });
+            }
           } else if (portalSprite.x - player.x >= 450) {
             portalSound.stop();
             playOnce = 1;
