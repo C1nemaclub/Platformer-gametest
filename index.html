@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+
+    <title>Document</title>
+    <style type="text/css">
+      body {
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: rgb(21, 14, 82);
+      }
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+      var SceneA = new Phaser.Class({
+        Extends: Phaser.Scene,
+
+        initialize: function SceneA() {
+          Phaser.Scene.call(this, { key: 'SceneA' });
+        },
+
+        preload: function () {
+          this.load.image('play', './assets/start-button.png');
+        },
+
+        create: function () {
+          const style = { font: 'bold 32px Arial', fill: '#fff' };
+          text = this.add.text(
+            window.innerWidth / 2,
+            640 / 2,
+            `Level 1`,
+            style
+          );
+          text2 = this.add.text(
+            window.innerWidth / 2,
+            550 / 2,
+            `Level 2`,
+            style
+          );
+
+          text.setInteractive();
+          text.once(
+            'pointerdown',
+            function (event) {
+              this.scene.start('SceneB');
+            },
+            this
+          );
+          text2.setInteractive();
+          text2.once(
+            'pointerdown',
+            function (event) {
+              this.scene.start('SceneC');
+            },
+            this
+          );
+        },
+      });
+      let cursors;
+      let coinLayer;
+      let coinAmount = 0;
+      let scoreText;
+      let soundtrack;
+      let portalSound;
+      let playOnce = 1;
+      var SceneB = new Phaser.Class({
+        Extends: Phaser.Scene,
+
+        initialize: function SceneB() {
+          Phaser.Scene.call(this, { key: 'SceneB' });
+        },
+
+        preload: function () {
+          this.load.image('ground', 'assets/adground.png');
+          this.load.image('grass', 'assets/adgrass.png');
+          this.load.image('bg', 'assets/adbg.png');
+          this.load.image('player', 'assets/star.png');
+          this.load.spritesheet('coin', 'assets/adcoin.png', {
+            frameWidth: 32,
+            frameHeight: 32,
+          });
+          this.load.spritesheet('portal', 'assets/portal.png', {
+            frameWidth: 100,
+            frameHeight: 100,
+          });
+          this.load.spritesheet('dude', 'assets/dude.png', {
+            frameWidth: 32,
+            frameHeight: 48,
+          });
+
+          this.load.image('spike', 'assets/spikes.png');
+          this.load.tilemapTiledJSON('map', 'assets/adventure2.json');
+          this.load.audio('collect', 'assets/coincollect.mp3');
+          this.load.audio('soundtrack', 'assets/soundtrack.mp3');
+          this.load.audio('portalSound', 'assets/portalsound.mp3');
+          this.load.image('coinLogo', 'assets/sCoins.png');
+        },
+
+        create: function () {
+          coinSound = this.sound.add('collect');
+          soundtrack = this.sound.add('soundtrack');
+          portalSound = this.sound.add('portalSound');
+          soundtrack.play();
+
+          const map = this.make.tilemap({
+            key: 'map',
+            tileWidth: 32,
+            tileHeight: 32,
+          });
+
+          //Background tiles
+          const bgTileset = map.addTilesetImage('bgtileset', 'bg', 32, 32);
+          const bgLayer = map.createLayer('bgLayer', bgTileset, 0, 0);
+          //Ground tiles
+          const groundTileset = map.addTilesetImage(
+            'groundtileset',
+            'ground',
+            32,
+            32
+          );
+          const groundLayer = map.createLayer(
+            'groundLayer',
+            groundTileset,
+            0,
+            0
+          );
+
+          //Grass tiles
+          const grassTileset = map.addTilesetImage(
+            'grasstileset',
+            'grass',
+            32,
+            32
+          );
+          const grassLayer = map.createLayer('grassLayer', grassTileset, 0, 0);
+
+          //Coin Tiles
+          const coinTileset = map.addTilesetImage(
+            'cointileset',
+            'coin',
+            32,
+            32
+          );
+          coinLayer = map.createLayer('coinLayer', coinTileset, 0, 0);
+
+          //Spikes tiles
+          const spikeTileset = map.addTilesetImage(
+            'spiketileset',
+            'spike',
+            32,
+            32
+          );
+          const spikeLayer = map.createLayer('spikesLayer', spikeTileset, 0, 0);
+          //Player
+          player = this.physics.add.sprite(80, 70, 'dude');
+          player.setGravityY(4500);
+          // player.setCollideWorldBounds(true);
+          this.cameras.main.setBounds(0, 0, 3840, 0);
+          this.cameras.main.startFollow(player, true);
+
+          //Player with ground  and spikes collisions
+          this.physics.add.collider(player, groundLayer);
+          this.physics.add.collider(player, spikeLayer);
+          //groundLayer.setCollisionBetween(1, 4000);
+          //spikeLayer.setCollisionBetween(1, 1000);
+          groundLayer.setCollisionByProperty({ collide: true });
+          this.physics.add.overlap(player, spikeLayer);
+          spikeLayer.setTileIndexCallback(2310, hitSpike, this);
+
+          //Coin Collision
+          this.physics.add.overlap(player, coinLayer);
+          coinLayer.setTileIndexCallback(2249, hitCoin, this);
+
+          //Keyboard keys
+          cursors = this.input.keyboard.createCursorKeys();
+
+          //Text
+          coinSprite = this.add.sprite(40, 20, 'coin').setOrigin(0);
+          this.anims.create({
+            key: 'spin',
+            frames: this.anims.generateFrameNumbers('coin', {
+              start: 1,
+              end: 60,
+            }),
+            frameRate: 60,
+            repeat: -1,
+          });
+          //Player anims
+          this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', {
+              start: 0,
+              end: 3,
+            }),
+            frameRate: 10,
+            repeat: -1,
+          });
+
+          this.anims.create({
+            key: 'turn',
+            frames: [{ key: 'dude', frame: 4 }],
+            frameRate: 20,
+          });
+
+          this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', {
+              start: 5,
+              end: 8,
+            }),
+            frameRate: 10,
+            repeat: -1,
+          });
+          //End anims
+          coinSprite.anims.play('spin');
+          scoreText = this.add.text(75, 15, '0', {
+            fontFamily: '"Helvetica"',
+            fontSize: 'px',
+          });
+          coinSprite.scrollFactorX = 0;
+          coinSprite.scrollFactorY = 0;
+          scoreText.scrollFactorX = 0;
+          scoreText.scrollFactorY = 0;
+          scoreText.setFontSize(35);
+          portalSprite = this.physics.add
+            .sprite(3700, 350, 'portal')
+            .setOrigin(0)
+            .setScale(2, 2);
+          //3700
+          this.anims.create({
+            key: 'portalSpin',
+            frames: this.anims.generateFrameNumbers('portal', {
+              start: 1,
+              end: 40,
+            }),
+            frameRate: 40,
+            repeat: -1,
+          });
+
+          portalSprite.anims.play('portalSpin');
+          portalSound.setLoop(true);
+          portalSprite.body.setAllowGravity(false);
+          portalSprite.setImmovable(true);
+          portalSprite.setSize(50, 50);
+          portalSprite.setCircle(22, 25, 25);
+
+          this.physics.add.overlap(player, portalSprite, nextLevel, null, this);
+        },
+        update: function () {
+          if (portalSprite.x - player.x <= 450 && playOnce === 1) {
+            portalSound.play();
+            playOnce = 0;
+          } else if (portalSprite.x - player.x >= 450) {
+            portalSound.stop();
+            playOnce = 1;
+          }
+          if (cursors.left.isDown) {
+            player.body.setVelocityX(-400);
+            player.anims.play('left', true);
+          } else if (cursors.right.isDown) {
+            player.body.setVelocityX(400);
+            player.anims.play('right', true);
+          } else {
+            player.body.setVelocityX(0);
+            player.anims.play('turn');
+          }
+          if (cursors.space.isDown && player.body.onFloor()) {
+            player.setVelocityY(-1180);
+          }
+        },
+      });
+      function nextLevel() {
+        this.game.sound.stopAll();
+        this.scene.start('SceneA');
+      }
+      function hitSpike(sprite, tile) {
+        // player.x = 80;
+        // player.y = 200;
+        coinAmount = 0;
+        this.game.sound.stopAll();
+        this.scene.restart();
+      }
+
+      function hitCoin(sprite, tile) {
+        coinAmount++;
+        scoreText.setText(` ${coinAmount}`);
+        coinLayer.removeTileAt(tile.x, tile.y);
+        coinSound.play();
+        return false;
+      }
+      //this.scene.start('sceneB');
+      let kb;
+      var SceneC = new Phaser.Class({
+        Extends: Phaser.Scene,
+
+        initialize: function SceneC() {
+          Phaser.Scene.call(this, { key: 'SceneC' });
+        },
+
+        preload: function () {
+          this.load.image('sky', './assets/sky.png');
+          this.load.image('ground', 'assets/adground.png');
+          this.load.image('grass', 'assets/adgrass.png');
+          this.load.image('bg', 'assets/adbg.png');
+          this.load.image('player', 'assets/star.png');
+          this.load.spritesheet('coin', 'assets/adcoin.png', {
+            frameWidth: 32,
+            frameHeight: 32,
+          });
+          this.load.spritesheet('portal', 'assets/portal.png', {
+            frameWidth: 100,
+            frameHeight: 100,
+          });
+          this.load.spritesheet('dude', 'assets/dude.png', {
+            frameWidth: 32,
+            frameHeight: 48,
+          });
+
+          this.load.image('spike', 'assets/spikes.png');
+          this.load.tilemapTiledJSON('map', 'assets/adventure3.json');
+          this.load.audio('collect', 'assets/coincollect.mp3');
+          this.load.audio('soundtrack', 'assets/soundtrack.mp3');
+          this.load.audio('portalSound', 'assets/portalsound.mp3');
+          this.load.image('coinLogo', 'assets/sCoins.png');
+        },
+
+        create: function () {
+          coinSound = this.sound.add('collect');
+          soundtrack = this.sound.add('soundtrack');
+          portalSound = this.sound.add('portalSound');
+          soundtrack.play();
+          //Map and layers
+          const map = this.make.tilemap({
+            key: 'map',
+            tileWidth: 32,
+            tileHeight: 32,
+          });
+          const bgTileset = map.addTilesetImage('bgtileset', 'bg', 32, 32);
+          const bgLayer = map.createLayer('bgLayer', bgTileset, 0, 0);
+
+          const groundTileset = map.addTilesetImage(
+            'groundtileset',
+            'ground',
+            32,
+            32
+          );
+          const groundLayer = map.createLayer(
+            'groundLayer',
+            groundTileset,
+            0,
+            0
+          );
+
+          const coinTileset = map.addTilesetImage(
+            'cointileset',
+            'coin',
+            32,
+            32
+          );
+          coinLayer = map.createLayer('coinLayer', coinTileset, 0, 0);
+
+          const spikeTileset = map.addTilesetImage(
+            'spiketileset',
+            'spike',
+            32,
+            32
+          );
+          const spikeLayer = map.createLayer('spikesLayer', spikeTileset, 0, 0);
+          const grassTileset = map.addTilesetImage(
+            'grasstileset',
+            'grass',
+            32,
+            32
+          );
+          const grassLayer = map.createLayer('grassLayer', grassTileset, 0, 0);
+
+          // const overheadTileset = map.addTilesetImage(
+          //   'grasstileset',
+          //   'grass',
+          //   32,
+          //   32
+          // );
+          // const overheadLayer = map.createLayer(
+          //   'overheadLayer',
+          //   overheadTileset,
+          //   0,
+          //   0
+          // );
+          player = this.physics.add.sprite(50, 550, 'dude');
+
+          player.setGravityY(4500);
+
+          this.cameras.main.setBounds(0, 0, 4800, 0);
+
+          this.cameras.main.startFollow(player, true);
+
+          this.physics.add.collider(player, groundLayer);
+
+          this.physics.add.collider(player, spikeLayer);
+
+          groundLayer.setCollisionByProperty({ collide: true });
+
+          this.physics.add.overlap(player, spikeLayer);
+
+          this.physics.add.overlap(player, coinLayer);
+
+          coinLayer.setTileIndexCallback(1633, hitCoin, this);
+          spikeLayer.setTileIndexCallback(2310, hitSpike, this);
+
+          //Keyboard keys
+          kb = this.input.keyboard.createCursorKeys();
+
+          //Player anims
+          this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', {
+              start: 0,
+              end: 3,
+            }),
+            frameRate: 10,
+            repeat: -1,
+          });
+
+          this.anims.create({
+            key: 'turn',
+            frames: [{ key: 'dude', frame: 4 }],
+            frameRate: 20,
+          });
+
+          this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', {
+              start: 5,
+              end: 8,
+            }),
+            frameRate: 10,
+            repeat: -1,
+          });
+          //End anims
+
+          //Coin Sprite
+          coinSprite = this.add.sprite(40, 20, 'coin').setOrigin(0);
+          this.anims.create({
+            key: 'spin',
+            frames: this.anims.generateFrameNumbers('coin', {
+              start: 1,
+              end: 60,
+            }),
+            frameRate: 60,
+            repeat: -1,
+          });
+          coinSprite.anims.play('spin');
+          scoreText = this.add.text(75, 15, '0', {
+            fontFamily: '"Helvetica"',
+            fontSize: 'px',
+          });
+          coinSprite.scrollFactorX = 0;
+          coinSprite.scrollFactorY = 0;
+          scoreText.scrollFactorX = 0;
+          scoreText.scrollFactorY = 0;
+          scoreText.setFontSize(35);
+          portalSprite = this.physics.add
+            .sprite(4600, 110, 'portal')
+            .setOrigin(0)
+            .setScale(2, 2);
+
+          this.anims.create({
+            key: 'portalSpin',
+            frames: this.anims.generateFrameNumbers('portal', {
+              start: 1,
+              end: 40,
+            }),
+            frameRate: 40,
+            repeat: -1,
+          });
+
+          portalSprite.anims.play('portalSpin');
+          portalSound.setLoop(true);
+          portalSprite.body.setAllowGravity(false);
+          portalSprite.setImmovable(true);
+          portalSprite.setSize(50, 50);
+          portalSprite.setCircle(22, 25, 25);
+
+          this.physics.add.overlap(
+            player,
+            portalSprite,
+            nextLevel2,
+            null,
+            this
+          );
+        },
+
+        update: function () {
+          if (portalSprite.x - player.x <= 450 && playOnce === 1) {
+            portalSound.play();
+            playOnce = 0;
+          } else if (portalSprite.x - player.x >= 450) {
+            portalSound.stop();
+            playOnce = 1;
+          }
+          if (kb.left.isDown) {
+            player.body.setVelocityX(-400);
+            player.anims.play('left', true);
+          } else if (kb.right.isDown) {
+            player.body.setVelocityX(400);
+            player.anims.play('right', true);
+          } else {
+            player.body.setVelocityX(0);
+            player.anims.play('turn');
+          }
+          if (kb.space.isDown && player.body.onFloor()) {
+            player.setVelocityY(-1180);
+          }
+        },
+      });
+      var config = {
+        type: Phaser.AUTO,
+        width: window.innerWidth,
+        height: 640,
+        backgroundColor: '#000000',
+        parent: 'phaser-example',
+        pixelArt: true,
+        physics: {
+          default: 'arcade',
+          arcade: { gravity: { y: 300 }, debug: false },
+        },
+        scene: [SceneA, SceneB, SceneC],
+      };
+      function nextLevel2() {
+        this.game.sound.stopAll();
+        this.scene.start('SceneA');
+      }
+
+      var game = new Phaser.Game(config);
+    </script>
+  </body>
+</html>
